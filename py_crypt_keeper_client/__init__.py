@@ -3,6 +3,20 @@ from requests_toolbelt.streaming_iterator import StreamingIterator
 import json
 from os import getcwd, stat
 from os.path import getsize, join, basename
+from logging import getLogger, StreamHandler, Formatter, DEBUG, WARN
+
+
+__console_handler = StreamHandler()
+__console_handler.setLevel(WARN)
+
+__formatter = Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+__console_handler.setFormatter(__formatter)
+
+log = getLogger()
+log.addHandler(__console_handler)
+
+log = getLogger(__name__)
+log.setLevel(WARN)
 
 
 class FileIterator(object):
@@ -48,14 +62,14 @@ class CryptKeeperClient(object):
                 },
                 data=json.dumps(data)
             )
-            print('Response HTTP Status Code: {status_code}'.format(
+            log.debug('Response HTTP Status Code: {status_code}'.format(
                 status_code=response.status_code))
-            print('Response HTTP Response Body: {content}'.format(
+            log.debug('Response HTTP Response Body: {content}'.format(
                 content=response.content))
             if response.status_code == 201:
                 return json.loads(response.content.decode('utf-8'))
-        except requests.exceptions.RequestException:
-            print('HTTP Request failed')
+        except requests.exceptions.RequestException as e:
+            log.exception('HTTP Request failed!', e)
         return None
 
     def upload_file(self, filename):
@@ -77,9 +91,9 @@ class CryptKeeperClient(object):
                     url=upload_info.get('single_use_url'),
                     data=streamer,
                 )
-                print('Response HTTP Response Body: {content}'.format(
+                log.debug('Response HTTP Response Body: {content}'.format(
                     content=response.content))
                 return response
-        except requests.exceptions.RequestException:
-            print('HTTP Request failed')
+        except requests.exceptions.RequestException as e:
+            log.exception('HTTP Request failed!', e)
         return None
