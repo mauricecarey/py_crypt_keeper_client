@@ -53,8 +53,9 @@ class CryptKeeperClient(object):
             'document_metadata': document_metadata,
         }
         try:
+            url = '%s/upload_url/' % self.url
             response = requests.post(
-                url=self.url,
+                url=url,
                 headers={
                     'Accept': 'application/json',
                     'Authorization': 'ApiKey %s:%s' % (self.user, self.api_key),
