@@ -11,6 +11,8 @@ setup(
     packages=['py_crypt_keeper_client'],
     install_requires=[
         'pycrypto==2.6.1',
+        'requests==2.11.1',
+        'requests-toolbelt==0.7.0',
     ],
     zip_safe=False
 )
