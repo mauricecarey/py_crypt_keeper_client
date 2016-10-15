@@ -217,7 +217,7 @@ class CryptKeeperClient(object):
                 )
                 log.debug('Response HTTP Response Body: {content}'.format(
                     content=response.content))
-                return response
+                return upload_info.get('document_id')
         except requests.exceptions.RequestException as e:
             log.exception('HTTP Request failed!', e)
         return None
@@ -249,3 +249,5 @@ class CryptKeeperClient(object):
                 file.close()
         except requests.exceptions.RequestException as e:
             log.exception('HTTP Request failed', e)
+            raise e
+        return True
