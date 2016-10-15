@@ -138,15 +138,6 @@ class CryptKeeperClient(object):
         if not all([url, user, api_key]):
             raise ValueError('Must initialize url, user, and api_key. (%s, %s, %s)' % (url, user, api_key))
 
-    def get_cipher(self, key, iv):
-        return AES.new(key, AES.MODE_CBC, iv)
-
-    def get_block_size(self):
-        return AES.block_size
-
-    def generate_iv(self):
-        return Random.new().read(self.get_block_size())
-
     def get_upload_url(self, document_metadata):
         data = {
             'document_metadata': document_metadata,
