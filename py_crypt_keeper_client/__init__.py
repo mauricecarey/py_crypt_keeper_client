@@ -93,6 +93,15 @@ class CryptKeeperClient(object):
         if not all([url, user, api_key]):
             raise ValueError('Must initialize url, user, and api_key. (%s, %s, %s)' % (url, user, api_key))
 
+    def get_cipher(self, key, iv):
+        return AES.new(key, AES.MODE_CBC, iv)
+
+    def get_block_size(self):
+        return AES.block_size
+
+    def generate_iv(self):
+        return Random.new().read(self.get_block_size())
+
     def get_upload_url(self, document_metadata):
         data = {
             'document_metadata': document_metadata,
@@ -155,10 +164,10 @@ class CryptKeeperClient(object):
             with open(filename, 'r') as file:
                 key = upload_info.get('symmetric_key')
                 key = decode_key(key)
-                iv = Random.new().read(AES.block_size)
-                cipher = AES.new(key, AES.MODE_CBC, iv)
+                iv = self.generate_iv()
+                cipher = self.get_cipher(key, iv)
                 iterator = EncryptingFileIterator(file, cipher, iv)
-                encrypted_file_size = calculate_encrypted_file_size(file_size, AES.block_size)
+                encrypted_file_size = calculate_encrypted_file_size(file_size, self.get_block_size())
                 streamer = StreamingIterator(encrypted_file_size, iterator)
                 response = requests.put(
                     url=upload_info.get('single_use_url'),
@@ -172,6 +181,37 @@ class CryptKeeperClient(object):
         return None
 
     def download_file(self, document_id):
-        # http://docs.python-requests.org/en/master/api/#requests.Response.iter_content
-        # use requests.get with stream=True to get chunk-encoded responses.
-        pass
+        download_info = self.get_download_url(document_id)
+        document_metadata = download_info.get('document_metadata', {})
+        filename = join(getcwd(), document_metadata.get('name', document_id))
+        try:
+            response = requests.get(
+                url=download_info.get('single_use_url'),
+                headers={
+                    "Content-Type": "application/octet-stream",
+                },
+                stream=True
+            )
+            log.debug('Response HTTP Status Code: {status_code}'.format(
+                status_code=response.status_code))
+            byte_generator = response.iter_content(self.get_block_size())
+            iv = next(byte_generator)
+            key = download_info.get('symmetric_key')
+            key = decode_key(key)
+            cipher = self.get_cipher(key, iv)
+            content_length = int(document_metadata.get('content_length',
+                                 response.headers['content-length'] - self.get_block_size()))
+            original_content_blocks = int(content_length/self.get_block_size())
+            partial_block_size = content_length - self.get_block_size() * original_content_blocks
+            with open(filename, 'wb') as file:
+                for b in byte_generator:
+                    decoded = cipher.decrypt(b)
+                    if original_content_blocks > 0:
+                        file.write(decoded)
+                    else:
+                        file.write(decoded[:partial_block_size])
+                    original_content_blocks -= 1
+                file.flush()
+                file.close()
+        except requests.exceptions.RequestException as e:
+            log.exception('HTTP Request failed', e)
