@@ -3,6 +3,9 @@ from requests_toolbelt.streaming_iterator import StreamingIterator
 import json
 from os import getcwd, stat
 from os.path import getsize, join, basename
+from Crypto.Cipher import AES
+from Crypto import Random
+from base64 import b64encode, b64decode
 from logging import getLogger, StreamHandler, Formatter, DEBUG, WARN
 
 
@@ -19,6 +22,19 @@ log = getLogger(__name__)
 log.setLevel(WARN)
 
 
+def decode_key(key_text):
+    return b64decode(key_text.encode('utf-8'))
+
+
+def calculate_encrypted_file_size(file_size, block_size):
+    # we have 1 block for the iv plus number of whole blocks in file.
+    base_multiplier = 1 + int(file_size/block_size)
+    # plus another block for any partial block in the file.
+    if file_size % block_size > 0:
+        base_multiplier += 1
+    return block_size * base_multiplier
+
+
 class FileIterator(object):
     def __init__(self, file):
         self.file = file
@@ -32,6 +48,35 @@ class FileIterator(object):
             raise StopIteration
         else:
             return byte
+
+
+class EncryptingFileIterator(object):
+    def __init__(self, file, cipher, iv, block_size=16):
+        self.file = file
+        self.cipher = cipher
+        self.block_size = block_size
+        self.iv = iv
+        self.first = True
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.first:
+            self.first = False
+            print('Returning iv: %s' % self.iv)
+            return self.iv
+        read = self.file.read(self.block_size)
+        print('Read %s bytes: %s' % (len(read), read))
+        if not read:
+            raise StopIteration
+        else:
+            if len(read) < self.block_size:
+                read = read.ljust(self.block_size)
+                print('Padding read %s bytes: %s' % (len(read), read))
+            cipher_text = self.cipher.encrypt(read)
+            print('Cipher text: %s' % cipher_text)
+            return cipher_text
 
 
 class CryptKeeperClient(object):
@@ -108,7 +153,13 @@ class CryptKeeperClient(object):
             return None
         try:
             with open(filename, 'r') as file:
-                streamer = StreamingIterator(file_size, FileIterator(file))
+                key = upload_info.get('symmetric_key')
+                key = decode_key(key)
+                iv = Random.new().read(AES.block_size)
+                cipher = AES.new(key, AES.MODE_CBC, iv)
+                iterator = EncryptingFileIterator(file, cipher, iv)
+                encrypted_file_size = calculate_encrypted_file_size(file_size, AES.block_size)
+                streamer = StreamingIterator(encrypted_file_size, iterator)
                 response = requests.put(
                     url=upload_info.get('single_use_url'),
                     data=streamer,
