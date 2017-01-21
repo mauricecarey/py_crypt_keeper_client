@@ -4,7 +4,9 @@ import json
 from os import getcwd, stat
 from os.path import getsize, join, basename
 from logging import getLogger, StreamHandler, Formatter, DEBUG, WARN
-from .cipher import Cipher
+from .cipher import Cipher, AES_CBC
+
+DEFAULT_ENCRYPTION_TYPE = AES_CBC
 
 log = getLogger(__name__)
 log.setLevel(WARN)
@@ -114,15 +116,17 @@ class CryptKeeperClient(object):
             'content_type': self.content_type,
             'uri': "http://www.mauricecarey.com/",
             'name': basename(filename),
-            'compressed': False
+            'compressed': False,
+            'encryption_type': DEFAULT_ENCRYPTION_TYPE,
         }
         upload_info = self.get_upload_url(document_metadata)
         if not upload_info:
             return None
         try:
-            with open(filename, 'r') as file:
+            with open(filename, 'rb') as file:
                 key = upload_info.get('symmetric_key')
-                cipher = Cipher('AES', key, file_size)
+                encryption_type = document_metadata.get('encryption_type', DEFAULT_ENCRYPTION_TYPE)
+                cipher = Cipher(encryption_type, key, file_size)
                 iterator = EncryptingFileIterator(file, cipher)
                 streamer = StreamingIterator(cipher.get_encrypted_file_size(), iterator)
                 response = requests.put(
@@ -136,10 +140,12 @@ class CryptKeeperClient(object):
             log.exception('HTTP Request failed!', e)
         return None
 
-    def download_file(self, document_id):
+    def download_file(self, document_id, file_name=None, file_path=None):
         download_info = self.get_download_url(document_id)
         document_metadata = download_info.get('document_metadata', {})
-        filename = join(getcwd(), document_metadata.get('name', document_id))
+        path = getcwd() if file_path is None else file_path
+        filename = join(path, document_metadata.get('name', document_id)) if file_name is None else file_name
+        encryption_type = document_metadata.get('encryption_type', DEFAULT_ENCRYPTION_TYPE)
         try:
             response = requests.get(
                 url=download_info.get('single_use_url'),
@@ -150,11 +156,11 @@ class CryptKeeperClient(object):
             )
             log.debug('Response HTTP Status Code: {status_code}'.format(
                 status_code=response.status_code))
-            block_size = Cipher.get_block_size('AES')
+            block_size = Cipher.get_block_size(encryption_type)
             byte_generator = response.iter_content(block_size)
             key = download_info.get('symmetric_key')
             file_size = int(document_metadata.get('content_length'))
-            cipher = Cipher('AES', key, file_size, byte_generator)
+            cipher = Cipher(encryption_type, key, file_size, byte_generator)
             with open(filename, 'wb') as file:
                 for b in byte_generator:
                     decoded = cipher.decrypt(b)

@@ -3,13 +3,15 @@ from Crypto import Random
 from logging import getLogger, DEBUG, WARN
 from .utility import decode_key, calculate_encrypted_file_size
 
+AES_CBC = 'AES|CBC'
+
 log = getLogger(__name__)
 log.setLevel(WARN)
 
 
 class Cipher(object):
     __block_sizes__ = {
-        'AES': AES.block_size
+        AES_CBC: AES.block_size
     }
 
     def __init__(self, cipher_type, key, file_size=None, iv_generator=None):
@@ -35,7 +37,7 @@ class Cipher(object):
 
     def get_cipher(self):
         cipher = {
-            'AES': AES.new(self.key, AES.MODE_CBC, self.iv)
+            AES_CBC: AES.new(self.key, AES.MODE_CBC, self.iv)
         }
         return cipher.get(self.cipher_type)
 
