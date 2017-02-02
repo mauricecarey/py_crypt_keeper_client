@@ -1,5 +1,5 @@
 from logging import getLogger, StreamHandler, Formatter, DEBUG, WARN
-from .client import CryptKeeperClient
+from .client import CryptKeeperClient, SimpleClient
 
 __console_handler = StreamHandler()
 __console_handler.setLevel(WARN)
