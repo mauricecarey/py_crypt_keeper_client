@@ -10,7 +10,6 @@ from .utility import EncryptingFileIterator
 DEFAULT_ENCRYPTION_TYPE = AES_CBC
 
 log = getLogger(__name__)
-log.setLevel(WARN)
 
 
 class CryptKeeperClient(object):
@@ -22,6 +21,8 @@ class CryptKeeperClient(object):
             raise ValueError('Must initialize url, user, and api_key. (%s, %s, %s)' % (url, user, api_key))
 
     def get_upload_url(self, document_metadata):
+        log.debug('***Entering CryptKeeperClient.get_upload_url({document_metadata})'.format(
+            document_metadata=document_metadata))
         data = {
             'document_metadata': document_metadata,
         }
@@ -36,17 +37,18 @@ class CryptKeeperClient(object):
                 },
                 data=json.dumps(data)
             )
-            log.debug('Response HTTP Status Code: {status_code}'.format(
+            log.debug('Crypt-Keeper upload Response HTTP Status Code: {status_code}'.format(
                 status_code=response.status_code))
-            log.debug('Response HTTP Response Body: {content}'.format(
+            log.debug('Crypt-Keeper upload Response HTTP Response Body: {content}'.format(
                 content=response.content))
             if response.status_code == 201:
                 return json.loads(response.content.decode('utf-8'))
         except requests.exceptions.RequestException as e:
-            log.exception('HTTP Request failed: %s', e)
+            log.exception('Crypt-Keeper HTTP upload Request failed: %s', e)
         return None
 
     def get_download_url(self, document_id):
+        log.debug('***Entering CryptKeeperClient.get_download_url({document_id})'.format(document_id=document_id))
         try:
             url = '%s/download_url/%s/' % (self.url, document_id)
             log.debug('Trying URL: %s', url)
@@ -57,14 +59,14 @@ class CryptKeeperClient(object):
                     'Authorization': 'ApiKey %s:%s' % (self.user, self.api_key),
                 },
             )
-            log.debug('Response HTTP Status Code: {status_code}'.format(
+            log.debug('Crypt-Keeper Response HTTP Status Code: {status_code}'.format(
                 status_code=response.status_code))
-            log.debug('Response HTTP Response Body: {content}'.format(
+            log.debug('Crypt-Keeper Response HTTP Response Body: {content}'.format(
                 content=response.content))
             if response.status_code == 200:
                 return json.loads(response.content.decode('utf-8'))
         except requests.exceptions.RequestException as e:
-            log.exception('HTTP Request failed: %s', e)
+            log.exception('Crypt-Keeper HTTP Request failed: %s', e)
         return None
 
 
@@ -84,11 +86,11 @@ class EncryptingS3Client(object):
                 url=url,
                 data=streamer,
             )
-            log.debug('Response HTTP Response Body: {content}'.format(
+            log.debug('S3 Upload HTTP Response Body: {content}'.format(
                 content=response.content))
             return True
         except requests.exceptions.RequestException as e:
-            log.exception('HTTP Request failed: %s', e)
+            log.exception('S3 HTTP Request failed: %s', e)
         return False
 
     def download(self, file, url):
@@ -100,7 +102,7 @@ class EncryptingS3Client(object):
                 file.write(decoded)
             return True
         except requests.exceptions.RequestException as e:
-            log.exception('HTTP Request failed: %s', e)
+            log.exception('S3 HTTP Request failed: %s', e)
             raise e
 
     @staticmethod
@@ -112,7 +114,7 @@ class EncryptingS3Client(object):
             },
             stream=True
         )
-        log.debug('Response HTTP Status Code: {status_code}'.format(
+        log.debug('S3 Download Response HTTP Status Code: {status_code}'.format(
             status_code=response.status_code))
         byte_generator = response.iter_content(block_size)
         return byte_generator
@@ -152,6 +154,8 @@ class SimpleClient(object):
 
     def download_file(self, document_id, file_name=None, file_path=None):
         download_info = self.crypt_keeper_client.get_download_url(document_id)
+        if download_info is None:
+            return False
         document_metadata = download_info.get('document_metadata', {})
         encryption_type = document_metadata.get('encryption_type', DEFAULT_ENCRYPTION_TYPE)
         key = download_info.get('symmetric_key')
