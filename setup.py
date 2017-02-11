@@ -14,5 +14,8 @@ setup(
         'requests==2.11.1',
         'requests-toolbelt==0.7.0',
     ],
-    zip_safe=False
+    zip_safe=False,
+    entry_points={
+        'console_scripts': ['ckc=py_crypt_keeper_client.command:main'],
+    },
 )
