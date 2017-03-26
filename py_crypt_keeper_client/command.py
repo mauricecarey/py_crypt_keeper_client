@@ -2,6 +2,8 @@ from logging import StreamHandler, Formatter, getLogger, DEBUG, ERROR, basicConf
 from argparse import ArgumentParser
 from .client import SimpleClient, log as client_log
 from . import console_handler
+from json import dumps, loads
+from sys import stdin, stderr
 
 
 # setup logging
@@ -38,6 +40,12 @@ def main():
         action='store_true',
         help='Set the log level to debug.',
     )
+    parser.add_argument(
+        '-j',
+        '--json',
+        action='store_true',
+        help='Output json data.',
+    )
     sub_parsers = parser.add_subparsers(
         title='sub-command',
         description='valid sub-commands',
@@ -68,6 +76,7 @@ def main():
     )
 
     args = vars(parser.parse_args())
+    json = args['json']
     if args['debug']:
         log.setLevel(DEBUG)
         client_log.setLevel(DEBUG)
@@ -82,13 +91,35 @@ def main():
         parser.print_usage()
     elif args['sub_parser_name'] == 'upload':
         output = client.upload_file(args['filename'])
-        print('Document ID: {output}'.format(output=output))
-    elif args['sub_parser_name'] == 'download':
-        output = client.download_file(args['document_id'], args['filename'], args['path'])
-        if output:
-            print('Successful downloaded file {filename}.'.format(filename=args['filename']))
+        if json:
+            print(dumps(
+                {
+                    'documentId': output,
+                }
+            ))
         else:
-            print('File not downloaded for document id {document_id}.'.format(document_id=args['document_id']))
+            print('Document ID: {output}'.format(output=output))
+    elif args['sub_parser_name'] == 'download':
+        document_id = args['document_id']
+        if document_id == '-':
+            document_id = None
+            with stdin as f:
+                document_id = loads(f.read()).get('documentId')
+        if document_id is None:
+            print('ERROR: Document id must be provided.', file=stderr)
+            exit()
+        output = client.download_file(document_id, args['filename'], args['path'])
+        if json:
+            print(dumps(
+                {
+                    'downloaded': output,
+                }
+            ))
+        else:
+            if output:
+                print('Successful downloaded file {filename}.'.format(filename=args['filename']))
+            else:
+                print('File not downloaded for document id {document_id}.'.format(document_id=args['document_id']))
 
 if __name__ == '__main__':
     main()
