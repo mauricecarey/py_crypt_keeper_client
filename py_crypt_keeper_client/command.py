@@ -4,30 +4,68 @@ from .client import SimpleClient, log as client_log
 from . import console_handler
 from json import dumps, loads
 from sys import stdin, stderr
+from os import path
 
 
 # setup logging
 log = getLogger(__name__)
 
 
+CONFIGURATION_FILE_NAME = path.join(path.expanduser('~'), '.ckc_config.json')
+REQUIRED_CONFIG = {
+    'url': ('url', 'Service URL'),
+    'user': ('user', 'User name'),
+    'api_key': ('api-key', 'User\'s API key'),
+}
+
+
+def merge(override_map=None, default_map=None):
+    m = dict(default_map or {})
+    m.update(override_map)
+    for key in m:
+        if m[key] is None:
+            m[key] = default_map.get(key)
+    return m
+
+
+def get_config(args):
+    config = None
+    try:
+        config = loads(open(CONFIGURATION_FILE_NAME, 'r', encoding='utf-8').read())
+    except IOError:
+        log.warning(
+            'Could not load configuration from file "{filename}". Will use command line arguments only.'
+            .format(filename=CONFIGURATION_FILE_NAME)
+        )
+    return merge(args, config)
+
+
+def validate_config(config):
+    r = list()
+    for k, v in REQUIRED_CONFIG.items():
+        if k not in config or config[k] is None:
+            r.append(v)
+    if len(r) == 0:
+        return None
+    else:
+        return r
+
+
 def main():
     parser = ArgumentParser(description='Secure document exchange.')
     parser.add_argument(
         '-u',
-        '--user',
-        required=True,
-        help='User name'
+        '--%s' % REQUIRED_CONFIG['user'][0],
+        help=REQUIRED_CONFIG['user'][1],
     )
     parser.add_argument(
-        '--url',
-        required=True,
-        help='Service URL'
+        '--%s' % REQUIRED_CONFIG['url'][0],
+        help=REQUIRED_CONFIG['url'][1],
     )
     parser.add_argument(
         '-a',
-        '--api-key',
-        required=True,
-        help='User\'s API key'
+        '--%s' % REQUIRED_CONFIG['api_key'][0],
+        help=REQUIRED_CONFIG['api_key'][1],
     )
     parser.add_argument(
         '-c',
@@ -75,22 +113,55 @@ def main():
         help='The path to the file to download.'
     )
 
+    write_config_parser = sub_parsers.add_parser('write-config', help='Write supplied required args to config file.')
+
     args = vars(parser.parse_args())
-    json = args['json']
-    if args['debug']:
+    config = get_config(args)
+    if config.get('debug'):
         log.setLevel(DEBUG)
         client_log.setLevel(DEBUG)
         console_handler.setLevel(DEBUG)
-    log.debug('Parser args: {args}'.format(args=args))
-
-    if args['content_type'] is None:
-        client = SimpleClient.create(args['url'], args['user'], args['api_key'])
-    else:
-        client = SimpleClient.create(args['url'], args['user'], args['api_key'], args['content_type'])
-    if args['sub_parser_name'] is None:
+    log.debug('Parser args: {args}'.format(args=config))
+    json = config['json']
+    if config.get('sub_parser_name') == 'write-config':
+        output_config = dict()
+        for key in config:
+            if key in REQUIRED_CONFIG and config[key] is not None:
+                output_config[key] = config[key]
+        with open(CONFIGURATION_FILE_NAME, 'w', encoding='utf-8') as config_file:
+            config_file.write(dumps(output_config))
+            config_file.flush()
+            config_file.close()
+            if json:
+                print(dumps(
+                    {
+                        'success': True,
+                        'filename': CONFIGURATION_FILE_NAME,
+                    }
+                ))
+            else:
+                print('Successfully wrote config to file: {filename}'.format(filename=CONFIGURATION_FILE_NAME))
+        exit()
+    valid = validate_config(config)
+    if valid is not None:
+        for v in valid:
+            print(
+                'ERROR: argument {argument_name} must be provided either on command line or via configuration file.'
+                    .format(argument_name=v[0]),
+                file=stderr,
+            )
         parser.print_usage()
-    elif args['sub_parser_name'] == 'upload':
-        output = client.upload_file(args['filename'])
+        exit()
+
+    if config.get('content_type') is None:
+        client = SimpleClient.create(config['url'], config['user'], config['api_key'])
+    else:
+        client = SimpleClient.create(['url'], config['user'], config['api_key'], config['content_type'])
+    if config['sub_parser_name'] is None:
+        parser.print_usage()
+        exit()
+    elif config['sub_parser_name'] == 'upload':
+        output = client.upload_file(config['filename'])
         if json:
             print(dumps(
                 {
@@ -99,8 +170,8 @@ def main():
             ))
         else:
             print('Document ID: {output}'.format(output=output))
-    elif args['sub_parser_name'] == 'download':
-        document_id = args['document_id']
+    elif config['sub_parser_name'] == 'download':
+        document_id = config['document_id']
         if document_id == '-':
             document_id = None
             with stdin as f:
@@ -108,7 +179,7 @@ def main():
         if document_id is None:
             print('ERROR: Document id must be provided.', file=stderr)
             exit()
-        output = client.download_file(document_id, args['filename'], args['path'])
+        output = client.download_file(document_id, config['filename'], config['path'])
         if json:
             print(dumps(
                 {
@@ -117,9 +188,9 @@ def main():
             ))
         else:
             if output:
-                print('Successful downloaded file {filename}.'.format(filename=args['filename']))
+                print('Successful downloaded file {filename}.'.format(filename=config['filename']))
             else:
-                print('File not downloaded for document id {document_id}.'.format(document_id=args['document_id']))
+                print('File not downloaded for document id {document_id}.'.format(document_id=config['document_id']))
 
 if __name__ == '__main__':
     main()
