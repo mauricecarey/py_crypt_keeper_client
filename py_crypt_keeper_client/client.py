@@ -69,6 +69,61 @@ class CryptKeeperClient(object):
             log.exception('Crypt-Keeper HTTP Request failed: %s', e)
         return None
 
+    def get_share(self, document_id):
+        log.debug('***Entering CryptKeeperClient.get_share({document_id})'.format(document_id=document_id))
+        try:
+            url = '{base_url}/share/{document_id}/'.format(
+                base_url=self.url,
+                document_id=document_id
+            )
+            log.debug('Trying URL: %s', url)
+            response = requests.get(
+                url=url,
+                headers={
+                    'Accept': 'application/json',
+                    'Authorization': 'ApiKey %s:%s' % (self.user, self.api_key),
+                },
+            )
+            log.debug('Crypt-Keeper get share Response HTTP Status Code: {status_code}'.format(
+                status_code=response.status_code))
+            log.debug('Crypt-Keeper get share Response HTTP Response Body: {content}'.format(
+                content=response.content))
+            if response.status_code == 200:
+                return json.loads(response.content.decode('utf-8'))
+        except requests.exceptions.RequestException as e:
+            log.exception('Crypt-Keeper get share HTTP Request failed: %s', e)
+        return None
+
+    def post_share(self, document_id, username):
+        log.debug('***Entering CryptKeeperClient.post_share({document_id}, {username})'.format(
+            document_id=document_id,
+            username=username,
+        ))
+        data = {
+            'document_id': document_id,
+            'username': username,
+        }
+        try:
+            url = '%s/share/' % self.url
+            response = requests.post(
+                url=url,
+                headers={
+                    'Accept': 'application/json',
+                    'Authorization': 'ApiKey %s:%s' % (self.user, self.api_key),
+                    'Content-Type': 'application/json; charset=utf-8',
+                },
+                data=json.dumps(data)
+            )
+            log.debug('Crypt-Keeper post share Response HTTP Status Code: {status_code}'.format(
+                status_code=response.status_code))
+            log.debug('Crypt-Keeper post share Response HTTP Response Body: {content}'.format(
+                content=response.content))
+            if response.status_code == 201:
+                return json.loads(response.content.decode('utf-8'))
+        except requests.exceptions.RequestException as e:
+            log.exception('Crypt-Keeper HTTP post share Request failed: %s', e)
+        return None
+
 
 class EncryptingS3Client(object):
     def __init__(self, encryption_type, key, file_size, block_size=None):
@@ -169,6 +224,19 @@ class SimpleClient(object):
             file.flush()
             file.close()
         return True
+
+    def get_share(self, document_id):
+        users = []
+        share_info = self.crypt_keeper_client.get_share(document_id)
+        if share_info is not None:
+            users = share_info.get('users', []) or []
+        return users
+
+    def post_share(self, document_id, username):
+        share_info = self.crypt_keeper_client.post_share(document_id, username)
+        if share_info is None:
+            return False
+        return share_info.get('resource_uri')
 
     @staticmethod
     def generate_file_name(document_id, document_metadata, file_name, file_path):

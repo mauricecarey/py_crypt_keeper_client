@@ -113,6 +113,17 @@ def main():
         help='The path to the file to download.'
     )
 
+    share_parser = sub_parsers.add_parser('share', help='share help')
+    share_parser.add_argument(
+        'document_id',
+        help='The document id to share or lookup.'
+    )
+    share_parser.add_argument(
+        '-a',
+        '--add',
+        help='The name of a user to add to document share.'
+    )
+
     write_config_parser = sub_parsers.add_parser('write-config', help='Write supplied required args to config file.')
 
     args = vars(parser.parse_args())
@@ -191,6 +202,49 @@ def main():
                 print('Successful downloaded file {filename}.'.format(filename=config['filename']))
             else:
                 print('File not downloaded for document id {document_id}.'.format(document_id=config['document_id']))
+    elif config['sub_parser_name'] == 'share':
+        document_id = config['document_id']
+        if document_id == '-':
+            document_id = None
+            with stdin as f:
+                document_id = loads(f.read()).get('documentId')
+        if document_id is None:
+            print('ERROR: Document id must be provided.', file=stderr)
+            exit()
+        username = config.get('add')
+        if username is not None:
+            output = client.post_share(document_id, username)
+            if json:
+                print(dumps(
+                    {
+                        'resource_url': output
+                    }
+                ))
+            else:
+                if output:
+                    print('Successfully added {username} to {document_id}.'.format(
+                        username=username,
+                        document_id=document_id,
+                    ))
+                else:
+                    print('Could not add {username} to {document_id}. See logs.'.format(
+                        username=username,
+                        document_id=document_id,
+                    ))
+        else:
+            output = client.get_share(document_id)
+            if json:
+                print(dumps(
+                    {
+                        'document_id': document_id,
+                        'users': output,
+                    }
+                ))
+            else:
+                print('Users {users} have access to {document_id}.'.format(
+                    users=output,
+                    document_id=document_id,
+                ))
 
 if __name__ == '__main__':
     main()
