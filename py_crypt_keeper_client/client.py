@@ -11,10 +11,11 @@ DEFAULT_ENCRYPTION_TYPE = AES_CBC
 
 log = getLogger(__name__)
 
+URL_V1 = '{base_url}/api/v1/secure_document_service'
 
 class CryptKeeperClient(object):
     def __init__(self, url, user, api_key):
-        self.url = url
+        self.url = URL_V1.format(base_url=url)
         self.user = user
         self.api_key = api_key
         if not all([url, user, api_key]):

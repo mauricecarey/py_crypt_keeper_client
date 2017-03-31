@@ -14,7 +14,8 @@ KEY_SIZE = AES.key_size[0]
 
 API_KEY = 'test'
 USER = 'cryptkeeper-user'
-URL = 'http://test/api/v1/document_service'
+URL = 'http://test'
+EXPECTED_URL = 'http://test/api/v1/secure_document_service'
 
 
 class BaseClientTest(TestCase):
@@ -72,7 +73,7 @@ class TestCryptKeeperClient(BaseClientTest):
         response = client.get_upload_url(metadata)
         self.assertIsNotNone(response)
         post_mock.assert_called_with(
-            url='%s/upload_url/' % URL,
+            url='%s/upload_url/' % EXPECTED_URL,
             headers=headers,
             data=json.dumps({'document_metadata': metadata})
         )
@@ -96,7 +97,7 @@ class TestCryptKeeperClient(BaseClientTest):
         response = client.get_download_url(self.document_id)
         self.assertIsNotNone(response)
         get_mock.assert_called_with(
-            url='%s/download_url/%s/' % (URL, self.document_id),
+            url='%s/download_url/%s/' % (EXPECTED_URL, self.document_id),
             headers=headers,
         )
 
@@ -118,7 +119,7 @@ class TestCryptKeeperClient(BaseClientTest):
         response = client.get_share(self.document_id)
         self.assertIsNotNone(response)
         get_mock.assert_called_with(
-            url='%s/share/%s/' % (URL, self.document_id),
+            url='%s/share/%s/' % (EXPECTED_URL, self.document_id),
             headers=headers,
         )
 
@@ -134,7 +135,7 @@ class TestCryptKeeperClient(BaseClientTest):
         response = client.post_share(self.document_id, USER)
         self.assertIsNotNone(response)
         post_mock.assert_called_with(
-            url='%s/share/' % URL,
+            url='%s/share/' % EXPECTED_URL,
             headers=headers,
             data=json.dumps({
                 'document_id': self.document_id,
