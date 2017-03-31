@@ -191,7 +191,6 @@ class SimpleClient(object):
         document_metadata = {
             'content_length': file_size,
             'content_type': self.content_type,
-            'uri': "http://www.mauricecarey.com/",
             'name': basename(filename),
             'compressed': False,
             'encryption_type': DEFAULT_ENCRYPTION_TYPE,
