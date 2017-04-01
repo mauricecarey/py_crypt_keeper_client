@@ -2,6 +2,12 @@
 
 ## Install
 
+To install using pip:
+
+    virtualenv -p `which python3` some_env
+    source some_env/bin/activate
+    pip install py_crypt_keeper_client
+
 ## Development
 
 ### Getting (giting) the Code
